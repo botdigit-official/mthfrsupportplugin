@@ -38,4 +38,10 @@ Hooks into WooCommerce to tie uploads and reports to customer orders.
 - Validates the cart and ensures an upload is present.
 - Triggers background report generation when an order is completed.
 
+## GRM_Admin_Orders
+Adds a meta box on WooCommerce order pages listing any generated reports.
+
+## GRM_Admin_Reports
+Placeholder for future admin report utilities.
+
 Additional classes under the `admin/` and `public/` directories provide AJAX handlers, shortcodes and admin pages.

@@ -122,8 +122,8 @@ $auto_generate = get_option('grg_auto_generate', 0);
                 <th scope="row">Database Files</th>
                 <td>
                     <?php
-                    $genetic_db = GRG_PLUGIN_DIR . 'data/genetic-database.xlsx';
-                    $meth_db = GRG_PLUGIN_DIR . 'data/meth-database.xlsx';
+                    $genetic_db = GRM_PLUGIN_DIR . 'data/genetic-database.xlsx';
+                    $meth_db = GRM_PLUGIN_DIR . 'data/meth-database.xlsx';
                     ?>
                     <p>
                         <strong>Genetic Database:</strong> 
@@ -150,8 +150,8 @@ $auto_generate = get_option('grg_auto_generate', 0);
                 <th scope="row">Asset Files</th>
                 <td>
                     <?php
-                    $logo = GRG_PLUGIN_DIR . 'assets/images/report-logo.png';
-                    $gene_img = GRG_PLUGIN_DIR . 'assets/images/gene.png';
+                    $logo = GRM_PLUGIN_DIR . 'assets/images/report-logo.png';
+                    $gene_img = GRM_PLUGIN_DIR . 'assets/images/gene.png';
                     ?>
                     <p>
                         <strong>Report Logo:</strong> 
@@ -258,7 +258,7 @@ function clearAllData() {
     foreach ($tables as $table) {
         $wpdb->query("DROP TABLE IF EXISTS $table");
     }
-    GRG_Database::create_tables();
+    GRM_Database::create_tables();
     ?>
     <script>
         alert('Database tables recreated successfully!');
@@ -271,7 +271,7 @@ function clearAllData() {
     global $wpdb;
     $wpdb->query("TRUNCATE TABLE " . $wpdb->prefix . "grg_reports");
     $wpdb->query("TRUNCATE TABLE " . $wpdb->prefix . "grg_user_uploads");
-    GRG_Database::clear_logs();
+    GRM_Database::clear_logs();
     ?>
     <script>
         alert('All report data cleared successfully!');

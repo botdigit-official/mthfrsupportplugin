@@ -310,6 +310,27 @@ class GRM_Database {
         
         return $wpdb->get_results($wpdb->prepare($sql, $params));
     }
+
+    /**
+     * Fetch the most recent reports.
+     *
+     * @param int $limit Number of reports to return.
+     * @return array
+     */
+    public static function get_recent_reports($limit = 10) {
+        global $wpdb;
+
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT r.*, u.file_name as upload_file_name
+                 FROM " . self::$reports_table . " r
+                 LEFT JOIN " . self::$uploads_table . " u ON r.upload_id = u.id
+                 ORDER BY r.created_at DESC
+                 LIMIT %d",
+                $limit
+            )
+        );
+    }
     
     public static function get_pending_reports($limit = 10) {
         global $wpdb;
