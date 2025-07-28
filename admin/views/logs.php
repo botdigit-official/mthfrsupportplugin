@@ -3,8 +3,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$logs = GRG_Database::get_logs(50);
-$recent_reports = GRG_Database::get_recent_reports(10);
+$logs = GRM_Logger::get_logs(50);
+$recent_reports = GRM_Database::get_recent_reports(10);
 ?>
 
 <div class="wrap">
@@ -79,7 +79,7 @@ $recent_reports = GRG_Database::get_recent_reports(10);
                     <table class="widefat">
                         <tr>
                             <td><strong>Plugin Version:</strong></td>
-                            <td><?php echo GRG_VERSION; ?></td>
+                            <td><?php echo GRM_VERSION; ?></td>
                         </tr>
                         <tr>
                             <td><strong>WordPress Version:</strong></td>
@@ -103,7 +103,7 @@ $recent_reports = GRG_Database::get_recent_reports(10);
                         </tr>
                         <tr>
                             <td><strong>Plugin Directory:</strong></td>
-                            <td><?php echo GRG_PLUGIN_DIR; ?></td>
+                            <td><?php echo GRM_PLUGIN_DIR; ?></td>
                         </tr>
                     </table>
                     
@@ -127,9 +127,9 @@ $recent_reports = GRG_Database::get_recent_reports(10);
                     <h4 style="margin-top: 20px;">File Permissions:</h4>
                     <?php
                     $paths_to_check = array(
-                        'Plugin Directory' => GRG_PLUGIN_DIR,
-                        'Data Directory' => GRG_PLUGIN_DIR . 'data/',
-                        'Assets Directory' => GRG_PLUGIN_DIR . 'assets/',
+                        'Plugin Directory' => GRM_PLUGIN_DIR,
+                        'Data Directory' => GRM_PLUGIN_DIR . 'data/',
+                        'Assets Directory' => GRM_PLUGIN_DIR . 'assets/',
                         'WordPress Content' => WP_CONTENT_DIR
                     );
                     
@@ -202,7 +202,7 @@ function refreshLogs() {
 }
 
 // Auto-refresh logs every 30 seconds if debug mode is enabled
-<?php if (get_option('grg_enable_debug', 0)): ?>
+<?php if (get_option('grm_enable_debug', 0)): ?>
 setInterval(function() {
     // Only refresh if user hasn't interacted recently
     if (document.hasFocus() && Date.now() - lastActivity > 30000) {

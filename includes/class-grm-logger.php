@@ -37,7 +37,7 @@ class GRM_Logger {
             );
             
             // Log to WordPress error log if enabled
-            if (get_option('grg_enable_debug', 0)) {
+            if (get_option('grm_enable_debug', 0)) {
                 $log_entry = "[$timestamp] GRG[$level]: $message";
                 if ($context) {
                     $log_entry .= " | Context: " . $context_json;
@@ -67,8 +67,48 @@ class GRM_Logger {
             
         } catch (Exception $e) {
             // Fallback to WordPress error log
-            error_log("GRG Logger Error: " . $e->getMessage());
+            error_log("GRM Logger Error: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Convenience wrapper for info level logging
+     */
+    public static function info($message, $context = null) {
+        self::log('info', $message, $context);
+    }
+
+    /**
+     * Convenience wrapper for error level logging
+     */
+    public static function error($message, $context = null) {
+        self::log('error', $message, $context);
+    }
+
+    /**
+     * Debug logging, only written when debug mode is enabled
+     */
+    public static function debug($message, $context = null) {
+        if (get_option('grm_enable_debug', 0)) {
+            self::log('debug', $message, $context);
+        }
+    }
+
+    /**
+     * Toggle debug mode
+     */
+    public static function enable_debug($enabled) {
+        update_option('grm_enable_debug', $enabled ? 1 : 0);
+    }
+
+    /**
+     * Get raw log contents
+     *
+     * @param int $limit Number of lines to return
+     * @return array
+     */
+    public static function get_log_contents($limit = 100) {
+        return self::get_logs($limit);
     }
     
     /**

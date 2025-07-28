@@ -3,10 +3,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$reportable_products = get_option('grg_reportable_products', array(120, 938, 971, 977, 1698));
-$subscription_product = get_option('grg_subscription_product', 2152);
-$enable_debug = get_option('grg_enable_debug', 0);
-$auto_generate = get_option('grg_auto_generate', 0);
+$reportable_products = get_option('grm_reportable_products', array(120, 938, 971, 977, 1698));
+$subscription_product = get_option('grm_subscription_product', 2152);
+$enable_debug = get_option('grm_enable_debug', 0);
+$auto_generate = get_option('grm_auto_generate', 0);
 ?>
 
 <div class="wrap">
@@ -16,12 +16,12 @@ $auto_generate = get_option('grg_auto_generate', 0);
         <table class="form-table">
             <tr>
                 <th scope="row">
-                    <label for="grg_reportable_products">Reportable Product IDs</label>
+                    <label for="grm_reportable_products">Reportable Product IDs</label>
                 </th>
                 <td>
                     <input type="text" 
-                           id="grg_reportable_products" 
-                           name="grg_reportable_products" 
+                           id="grm_reportable_products"
+                           name="grm_reportable_products"
                            value="<?php echo esc_attr(implode(',', $reportable_products)); ?>" 
                            class="regular-text" />
                     <p class="description">
@@ -33,12 +33,12 @@ $auto_generate = get_option('grg_auto_generate', 0);
             
             <tr>
                 <th scope="row">
-                    <label for="grg_subscription_product">Subscription Product ID</label>
+                    <label for="grm_subscription_product">Subscription Product ID</label>
                 </th>
                 <td>
                     <input type="number" 
-                           id="grg_subscription_product" 
-                           name="grg_subscription_product" 
+                           id="grm_subscription_product"
+                           name="grm_subscription_product"
                            value="<?php echo esc_attr($subscription_product); ?>" 
                            class="small-text" />
                     <p class="description">
@@ -51,11 +51,11 @@ $auto_generate = get_option('grg_auto_generate', 0);
                 <th scope="row">Debug Mode</th>
                 <td>
                     <fieldset>
-                        <label for="grg_enable_debug">
-                            <input type="checkbox" 
-                                   id="grg_enable_debug" 
-                                   name="grg_enable_debug" 
-                                   value="1" 
+                        <label for="grm_enable_debug">
+                            <input type="checkbox"
+                                   id="grm_enable_debug"
+                                   name="grm_enable_debug"
+                                   value="1"
                                    <?php checked($enable_debug, 1); ?> />
                             Enable debug logging
                         </label>
@@ -70,10 +70,10 @@ $auto_generate = get_option('grg_auto_generate', 0);
                 <th scope="row">Auto Generation</th>
                 <td>
                     <fieldset>
-                        <label for="grg_auto_generate">
+                        <label for="grm_auto_generate">
                             <input type="checkbox" 
-                                   id="grg_auto_generate" 
-                                   name="grg_auto_generate" 
+                                   id="grm_auto_generate"
+                                   name="grm_auto_generate"
                                    value="1" 
                                    <?php checked($auto_generate, 1); ?> />
                             Automatically generate reports when orders are completed
@@ -122,8 +122,8 @@ $auto_generate = get_option('grg_auto_generate', 0);
                 <th scope="row">Database Files</th>
                 <td>
                     <?php
-                    $genetic_db = GRG_PLUGIN_DIR . 'data/genetic-database.xlsx';
-                    $meth_db = GRG_PLUGIN_DIR . 'data/meth-database.xlsx';
+                    $genetic_db = GRM_PLUGIN_DIR . 'data/genetic-database.xlsx';
+                    $meth_db = GRM_PLUGIN_DIR . 'data/meth-database.xlsx';
                     ?>
                     <p>
                         <strong>Genetic Database:</strong> 
@@ -150,8 +150,8 @@ $auto_generate = get_option('grg_auto_generate', 0);
                 <th scope="row">Asset Files</th>
                 <td>
                     <?php
-                    $logo = GRG_PLUGIN_DIR . 'assets/images/report-logo.png';
-                    $gene_img = GRG_PLUGIN_DIR . 'assets/images/gene.png';
+                    $logo = GRM_PLUGIN_DIR . 'assets/images/report-logo.png';
+                    $gene_img = GRM_PLUGIN_DIR . 'assets/images/gene.png';
                     ?>
                     <p>
                         <strong>Report Logo:</strong> 
@@ -251,14 +251,14 @@ function clearAllData() {
     <?php
     global $wpdb;
     $tables = array(
-        $wpdb->prefix . 'grg_user_uploads',
-        $wpdb->prefix . 'grg_reports', 
+        $wpdb->prefix . 'user_uploads',
+        $wpdb->prefix . 'user_reports',
         $wpdb->prefix . 'grg_logs'
     );
     foreach ($tables as $table) {
         $wpdb->query("DROP TABLE IF EXISTS $table");
     }
-    GRG_Database::create_tables();
+    GRM_Database::create_tables();
     ?>
     <script>
         alert('Database tables recreated successfully!');
@@ -269,9 +269,9 @@ function clearAllData() {
 <?php if (isset($_GET['clear_data']) && $_GET['clear_data'] == '1'): ?>
     <?php
     global $wpdb;
-    $wpdb->query("TRUNCATE TABLE " . $wpdb->prefix . "grg_reports");
-    $wpdb->query("TRUNCATE TABLE " . $wpdb->prefix . "grg_user_uploads");
-    GRG_Database::clear_logs();
+    $wpdb->query("TRUNCATE TABLE " . $wpdb->prefix . "user_reports");
+    $wpdb->query("TRUNCATE TABLE " . $wpdb->prefix . "user_uploads");
+    GRM_Database::clear_logs();
     ?>
     <script>
         alert('All report data cleared successfully!');
