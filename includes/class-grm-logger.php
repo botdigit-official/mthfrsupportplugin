@@ -7,7 +7,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class GRG_Logger {
+/**
+ * Class GRM_Logger
+ *
+ * Basic database and error log wrapper used throughout the plugin.
+ * Provides helper methods for retrieving and exporting logs.
+ */
+class GRM_Logger {
     
     private static $logs = array();
     private static $max_logs = 500; // Maximum logs to keep in database
