@@ -82,36 +82,44 @@ class GeneticReportManagerPro {
     
     private function check_required_files() {
         $required_files = array(
-            // Core classes
-            'includes/class-grm-database.php',
-            'includes/class-grm-logger.php',
-            'includes/class-grm-file-handler.php',
-            'includes/class-grm-report-generator.php',
-            'includes/class-grm-api-handler.php',
-            
+            // file => expected class
+            'includes/class-grm-database.php'           => 'GRM_Database',
+            'includes/class-grm-logger.php'             => 'GRM_Logger',
+            'includes/class-grm-file-handler.php'       => 'GRM_File_Handler',
+            'includes/class-grm-report-generator.php'   => 'GRM_Report_Generator',
+            'includes/class-grm-api-handler.php'        => 'GRM_API_Handler',
+
             // Frontend classes
-            'public/class-grm-shortcodes.php',
-            'public/class-grm-ajax-handler.php',
-            'public/class-grm-assets.php',
-            'public/class-grm-woocommerce-integration.php'
+            'public/class-grm-shortcodes.php'           => 'GRM_Shortcodes',
+            'public/class-grm-ajax-handler.php'         => 'GRM_Ajax_Handler',
+            'public/class-grm-assets.php'               => 'GRM_Assets',
+            'public/class-grm-woocommerce-integration.php' => 'GRM_WooCommerce_Integration'
         );
         
         // Add admin files only if in admin
         if (is_admin()) {
-            $required_files[] = 'admin/class-grm-admin.php';
-            $required_files[] = 'admin/class-grm-admin-orders.php';
-            $required_files[] = 'admin/class-grm-admin-reports.php';
+            $required_files['admin/class-grm-admin.php']         = 'GRM_Admin';
+            $required_files['admin/class-grm-admin-orders.php']  = 'GRM_Admin_Orders';
+            $required_files['admin/class-grm-admin-reports.php'] = 'GRM_Admin_Reports';
         }
         
         $this->missing_files = array();
         
-        foreach ($required_files as $file) {
+        foreach ($required_files as $file => $class) {
             $file_path = GRM_PLUGIN_DIR . $file;
+
             if (!file_exists($file_path)) {
                 $this->missing_files[] = $file;
+                continue;
+            }
+
+            // Load the file temporarily to verify class exists
+            require_once $file_path;
+            if (!class_exists($class)) {
+                $this->missing_files[] = $file . ' (class ' . $class . ' missing)';
             }
         }
-        
+
         return empty($this->missing_files);
     }
     
@@ -147,6 +155,9 @@ class GeneticReportManagerPro {
         new GRM_Ajax_Handler();
         new GRM_Assets();
         new GRM_WooCommerce_Integration();
+
+        // Cron: cleanup temporary files
+        add_action('grm_cleanup_temp_files', array($this, 'cleanup_temp_files'));
         
         // Initialize admin components
         if (is_admin()) {
@@ -217,6 +228,15 @@ class GeneticReportManagerPro {
         if (!wp_next_scheduled('grm_cleanup_temp_files')) {
             wp_schedule_event(time(), 'daily', 'grm_cleanup_temp_files');
         }
+    }
+
+    public function cleanup_temp_files() {
+        if (!get_option('grm_cleanup_temp_files', 1)) {
+            return;
+        }
+
+        $handler = new GRM_File_Handler();
+        $handler->cleanup_temp_files();
     }
     
     public function missing_files_notice() {

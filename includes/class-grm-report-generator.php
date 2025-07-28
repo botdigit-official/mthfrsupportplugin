@@ -1,6 +1,6 @@
 <?php
 /**
- * File Handler Class
+ * Report Generator Class
  * 
  * @package GeneticReportManager
  * @since 2.1.0
@@ -10,283 +10,327 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class GRM_File_Handler {
+if (!class_exists('GRM_Report_Generator')) {
+
+class GRM_Report_Generator {
     
-    private $allowed_types = array('zip');
-    private $max_file_size = 52428800; // 50MB in bytes
+    private $api_handler;
     
     public function __construct() {
-        $this->allowed_types = get_option('grm_allowed_file_types', array('zip'));
-        $this->max_file_size = get_option('grm_upload_max_size', 50) * 1024 * 1024;
+        if (class_exists('GRM_API_Handler')) {
+            $this->api_handler = new GRM_API_Handler();
+        }
     }
     
-    public function handle_upload($uploaded_file, $user_id) {
+    public function generate_report($upload_id, $order_id, $product_id, $product_name, $has_subscription = false) {
         try {
-            // Validate file
-            $this->validate_file($uploaded_file);
-            
-            // Create upload directory
-            $upload_dir = $this->get_user_upload_dir($user_id);
-            
-            // Generate unique filename
-            $unique_filename = $this->generate_unique_filename($uploaded_file['name'], $upload_dir);
-            $target_file = $upload_dir . '/' . $unique_filename;
-            
-            // Analyze file content to determine source type
-            $source_type = $this->analyze_file_content($uploaded_file['tmp_name']);
-            
-            // Move uploaded file
-            if (!move_uploaded_file($uploaded_file['tmp_name'], $target_file)) {
-                throw new Exception(__('Failed to move uploaded file', GRM_TEXT_DOMAIN));
+            if (class_exists('GRM_Logger')) {
+                GRM_Logger::info('Starting report generation', array(
+                    'upload_id' => $upload_id,
+                    'order_id' => $order_id,
+                    'product_id' => $product_id,
+                    'product_name' => $product_name,
+                    'has_subscription' => $has_subscription
+                ));
             }
             
-            // Create database record
-            $upload_id = GRM_Database::create_upload($user_id, $unique_filename, $target_file, $source_type);
+            // Validate upload exists
+            if (!class_exists('GRM_Database')) {
+                throw new Exception('Database class not available');
+            }
             
-            GRM_Logger::info('File uploaded successfully', array(
-                'upload_id' => $upload_id,
-                'user_id' => $user_id,
-                'filename' => $unique_filename,
-                'source_type' => $source_type
+            $upload = GRM_Database::get_upload($upload_id);
+            if (!$upload) {
+                throw new Exception('Upload not found: ' . $upload_id);
+            }
+
+            // Prepare directory for storing generated files
+            $wp_upload = wp_upload_dir();
+            $reports_dir = trailingslashit($wp_upload['basedir']) . 'user_reports';
+            if (!file_exists($reports_dir)) {
+                wp_mkdir_p($reports_dir);
+            }
+
+            $upload_specific_dir = trailingslashit($reports_dir) . intval($upload_id);
+            if (!file_exists($upload_specific_dir)) {
+                wp_mkdir_p($upload_specific_dir);
+            }
+            
+            // Check if report already exists
+            $existing_report = GRM_Database::get_report_by_upload($upload_id, $order_id);
+            if ($existing_report && $existing_report->status === 'completed') {
+                if (class_exists('GRM_Logger')) {
+                    GRM_Logger::info('Report already exists and is completed', array(
+                        'report_id' => $existing_report->id,
+                        'upload_id' => $upload_id
+                    ));
+                }
+                return $existing_report->id;
+            }
+            
+            // Create or update report record
+            $report_id = $this->create_or_update_report_record($upload_id, $order_id, $product_name);
+            
+            // Set status to processing
+            GRM_Database::update_report($report_id, array(
+                'status' => 'processing',
+                'error_message' => null
             ));
             
-            return array(
-                'upload_id' => $upload_id,
-                'folder_name' => $unique_filename,
-                'source_type' => $source_type,
-                'created_at' => current_time('Y-m-d')
+            // Make API call to generate report
+            if (!$this->api_handler) {
+                throw new Exception('API handler not available');
+            }
+            
+            $api_result = $this->api_handler->create_report($upload_id, $order_id, $product_name, $has_subscription);
+            
+            if (!$api_result['success']) {
+                throw new Exception('API call failed: ' . $api_result['error']);
+            }
+            
+            // Update report with success status
+            $update_data = array(
+                'status' => 'completed',
+                'error_message' => null
             );
             
-        } catch (Exception $e) {
-            GRM_Logger::error('File upload failed: ' . $e->getMessage(), array(
-                'user_id' => $user_id,
-                'filename' => $uploaded_file['name'] ?? 'unknown'
-            ));
-            throw $e;
-        }
-    }
-    
-    private function validate_file($uploaded_file) {
-        // Check for upload errors
-        if ($uploaded_file['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception($this->get_upload_error_message($uploaded_file['error']));
-        }
-        
-        // Check file extension
-        $file_extension = strtolower(pathinfo($uploaded_file['name'], PATHINFO_EXTENSION));
-        if (!in_array($file_extension, $this->allowed_types)) {
-            throw new Exception(sprintf(
-                __('Invalid file type. Allowed types: %s', GRM_TEXT_DOMAIN),
-                implode(', ', $this->allowed_types)
-            ));
-        }
-        
-        // Check file size
-        if ($uploaded_file['size'] > $this->max_file_size) {
-            throw new Exception(sprintf(
-                __('File too large. Maximum size: %s MB', GRM_TEXT_DOMAIN),
-                $this->max_file_size / 1024 / 1024
-            ));
-        }
-        
-        // Check MIME type
-        $allowed_mimes = array('application/zip', 'application/x-zip-compressed');
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime_type = finfo_file($finfo, $uploaded_file['tmp_name']);
-        finfo_close($finfo);
-        
-        if (!in_array($mime_type, $allowed_mimes)) {
-            throw new Exception(__('Invalid file format detected', GRM_TEXT_DOMAIN));
-        }
-    }
-    
-    private function get_upload_error_message($error_code) {
-        switch ($error_code) {
-            case UPLOAD_ERR_INI_SIZE:
-            case UPLOAD_ERR_FORM_SIZE:
-                return __('File is too large', GRM_TEXT_DOMAIN);
-            case UPLOAD_ERR_PARTIAL:
-                return __('File was only partially uploaded', GRM_TEXT_DOMAIN);
-            case UPLOAD_ERR_NO_FILE:
-                return __('No file was uploaded', GRM_TEXT_DOMAIN);
-            case UPLOAD_ERR_NO_TMP_DIR:
-                return __('Missing temporary directory', GRM_TEXT_DOMAIN);
-            case UPLOAD_ERR_CANT_WRITE:
-                return __('Failed to write file to disk', GRM_TEXT_DOMAIN);
-            case UPLOAD_ERR_EXTENSION:
-                return __('Upload stopped by extension', GRM_TEXT_DOMAIN);
-            default:
-                return __('Unknown upload error', GRM_TEXT_DOMAIN);
-        }
-    }
-    
-    private function get_user_upload_dir($user_id) {
-        $upload_dir = wp_upload_dir();
-        $user_uploads_dir = $upload_dir['basedir'] . '/user_uploads/' . $user_id;
-        
-        if (!file_exists($user_uploads_dir)) {
-            if (!wp_mkdir_p($user_uploads_dir)) {
-                throw new Exception(__('Failed to create upload directory', GRM_TEXT_DOMAIN));
-            }
-        }
-        
-        return $user_uploads_dir;
-    }
-    
-    private function generate_unique_filename($original_name, $upload_dir) {
-        $filename = sanitize_file_name($original_name);
-        $target_file = $upload_dir . '/' . $filename;
-        
-        if (!file_exists($target_file)) {
-            return $filename;
-        }
-        
-        $path_info = pathinfo($filename);
-        $counter = 1;
-        
-        do {
-            $new_filename = $path_info['filename'] . '_' . $counter . '.' . $path_info['extension'];
-            $target_file = $upload_dir . '/' . $new_filename;
-            $counter++;
-        } while (file_exists($target_file));
-        
-        return $new_filename;
-    }
-    
-    private function analyze_file_content($file_path) {
-        try {
-            $zip = new ZipArchive();
-            if ($zip->open($file_path) !== TRUE) {
-                throw new Exception(__('Failed to open ZIP file', GRM_TEXT_DOMAIN));
+            // Store additional data from API response if available
+            if (isset($api_result['data']['report_path'])) {
+                $update_data['report_path'] = $api_result['data']['report_path'];
             }
             
-            // Find the .txt file inside the ZIP
-            $txt_file_content = null;
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $file_name = $zip->getNameIndex($i);
-                
-                if (pathinfo($file_name, PATHINFO_EXTENSION) === 'txt') {
-                    $txt_file_content = $zip->getFromName($file_name);
-                    break;
-                }
+            if (isset($api_result['data']['report_type'])) {
+                $update_data['report_type'] = $api_result['data']['report_type'];
             }
             
-            $zip->close();
+            GRM_Database::update_report($report_id, $update_data);
             
-            if (!$txt_file_content) {
-                throw new Exception(__('No .txt file found inside the ZIP', GRM_TEXT_DOMAIN));
+            if (class_exists('GRM_Logger')) {
+                GRM_Logger::info('Report generation completed successfully', array(
+                    'report_id' => $report_id,
+                    'upload_id' => $upload_id,
+                    'order_id' => $order_id
+                ));
             }
             
-            return $this->determine_source_type($txt_file_content);
+            return $report_id;
             
         } catch (Exception $e) {
-            GRM_Logger::error('File analysis failed: ' . $e->getMessage());
-            throw $e;
-        }
-    }
-    
-    private function determine_source_type($file_contents) {
-        $lines = preg_split('/\r\n|\r|\n/', $file_contents);
-        $cleaned_lines = array();
-        
-        foreach ($lines as $line) {
-            // Replace commas with tabs and remove quotes
-            $new_line = str_replace(',', "\t", $line);
-            $new_line = str_replace('"', '', $new_line);
-            $cleaned_lines[] = $new_line;
-        }
-        
-        $source_type = null;
-        $header_found = false;
-        $valid_snp_count = 0;
-        
-        foreach ($cleaned_lines as $i => $line) {
-            $line = trim($line);
-            if ($line === '') continue;
-            
-            // MyHeritage: RSID CHROMOSOME POSITION RESULT
-            if (preg_match('/^RSID\s+CHROMOSOME\s+POSITION\s+RESULT$/i', $line)) {
-                $source_type = 'myheritage';
-                $header_found = true;
-                continue;
+            if (class_exists('GRM_Logger')) {
+                GRM_Logger::error('Report generation failed', array(
+                    'upload_id' => $upload_id,
+                    'order_id' => $order_id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ));
             }
             
-            // Ancestry: rsid chromosome position allele1 allele2
-            if (preg_match('/^rsid\s+chromosome\s+position\s+allele1\s+allele2$/i', $line)) {
-                $source_type = 'ancestry';
-                $header_found = true;
-                continue;
+            // Update report status to failed if we have a report_id
+            if (isset($report_id) && class_exists('GRM_Database')) {
+                GRM_Database::update_report($report_id, array(
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage()
+                ));
             }
             
-            // 23andMe: # rsid chromosome position genotype
-            if (preg_match('/^#\s*rsid\s+chromosome\s+position\s+genotype$/i', $line)) {
-                $source_type = '23andme';
-                $header_found = true;
-                continue;
-            }
-            
-            // Skip before header
-            if (!$header_found) continue;
-            
-            // Check for valid SNP data lines
-            $fields = preg_split('/\t|,/', $line);
-            
-            if ($source_type === 'myheritage' && count($fields) === 4 && preg_match('/^rs\d+$/i', $fields[0])) {
-                $valid_snp_count++;
-            }
-            
-            if ($source_type === 'ancestry' && count($fields) === 5 && preg_match('/^rs\d+$/i', $fields[0])) {
-                $valid_snp_count++;
-            }
-            
-            if ($source_type === '23andme' && count($fields) === 4 && preg_match('/^rs\d+$/i', $fields[0])) {
-                $valid_snp_count++;
-            }
-            
-            if ($valid_snp_count >= 3) break;
-        }
-        
-        if (!$header_found || !$source_type || $valid_snp_count < 3) {
-            throw new Exception(__('Invalid or unsupported raw DNA file format', GRM_TEXT_DOMAIN));
-        }
-        
-        return $source_type;
-    }
-    
-    public function cleanup_temp_files($days = 7) {
-        $upload_dir = wp_upload_dir();
-        $temp_dir = $upload_dir['basedir'] . '/grm-temp';
-        
-        if (!file_exists($temp_dir)) {
-            return 0;
-        }
-        
-        $deleted_count = 0;
-        $cutoff_time = time() - ($days * 24 * 60 * 60);
-        
-        $files = glob($temp_dir . '/*');
-        foreach ($files as $file) {
-            if (is_file($file) && filemtime($file) < $cutoff_time) {
-                if (unlink($file)) {
-                    $deleted_count++;
-                }
-            }
-        }
-        
-        GRM_Logger::info("Cleaned up $deleted_count temporary files");
-        return $deleted_count;
-    }
-    
-    public function get_file_info($file_path) {
-        if (!file_exists($file_path)) {
             return false;
         }
-        
-        return array(
-            'size' => filesize($file_path),
-            'modified' => filemtime($file_path),
-            'readable' => is_readable($file_path),
-            'writable' => is_writable($file_path)
-        );
     }
+    
+    public function regenerate_report($report_id) {
+        try {
+            if (!class_exists('GRM_Database')) {
+                throw new Exception('Database class not available');
+            }
+            
+            $report = GRM_Database::get_report($report_id);
+            if (!$report) {
+                throw new Exception('Report not found: ' . $report_id);
+            }
+            
+            if (class_exists('GRM_Logger')) {
+                GRM_Logger::info('Starting report regeneration', array(
+                    'report_id' => $report_id,
+                    'upload_id' => $report->upload_id,
+                    'order_id' => $report->order_id
+                ));
+            }
+            
+            // Set status to processing
+            GRM_Database::update_report($report_id, array(
+                'status' => 'processing',
+                'error_message' => null
+            ));
+            
+            // Get order to determine product name and subscription status
+            $order = null;
+            if (function_exists('wc_get_order')) {
+                $order = wc_get_order($report->order_id);
+            }
+            
+            $product_name = $report->report_name ?: 'Unknown Product';
+            $has_subscription = false;
+            
+            if ($order) {
+                foreach ($order->get_items() as $item) {
+                    $upload_id_meta = $item->get_meta('_upload_id');
+                    if ($upload_id_meta == $report->upload_id) {
+                        $product_name = $item->get_name();
+                        break;
+                    }
+                }
+                
+                // Check for subscription
+                $subscription_product = get_option('grm_subscription_product', 2152);
+                foreach ($order->get_items() as $item) {
+                    if ($item->get_product_id() == $subscription_product) {
+                        $has_subscription = true;
+                        break;
+                    }
+                }
+            }
+            
+            // Make API call to regenerate report
+            if (!$this->api_handler) {
+                throw new Exception('API handler not available');
+            }
+            
+            $api_result = $this->api_handler->create_report(
+                $report->upload_id, 
+                $report->order_id, 
+                $product_name, 
+                $has_subscription
+            );
+            
+            if (!$api_result['success']) {
+                throw new Exception('API call failed: ' . $api_result['error']);
+            }
+            
+            // Update report with success status
+            $update_data = array(
+                'status' => 'completed',
+                'error_message' => null,
+                'report_name' => $product_name
+            );
+            
+            // Store additional data from API response if available
+            if (isset($api_result['data']['report_path'])) {
+                $update_data['report_path'] = $api_result['data']['report_path'];
+            }
+            
+            if (isset($api_result['data']['report_type'])) {
+                $update_data['report_type'] = $api_result['data']['report_type'];
+            }
+            
+            GRM_Database::update_report($report_id, $update_data);
+            
+            if (class_exists('GRM_Logger')) {
+                GRM_Logger::info('Report regeneration completed successfully', array(
+                    'report_id' => $report_id,
+                    'upload_id' => $report->upload_id,
+                    'order_id' => $report->order_id
+                ));
+            }
+            
+            return true;
+            
+        } catch (Exception $e) {
+            if (class_exists('GRM_Logger')) {
+                GRM_Logger::error('Report regeneration failed', array(
+                    'report_id' => $report_id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ));
+            }
+            
+            // Update report status to failed
+            if (class_exists('GRM_Database')) {
+                GRM_Database::update_report($report_id, array(
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage()
+                ));
+            }
+            
+            return false;
+        }
+    }
+    
+    private function create_or_update_report_record($upload_id, $order_id, $product_name) {
+        // Check if report already exists
+        $existing_report = GRM_Database::get_report_by_upload($upload_id, $order_id);
+        
+        if ($existing_report) {
+            // Update existing report
+            GRM_Database::update_report($existing_report->id, array(
+                'report_name' => $product_name,
+                'status' => 'pending',
+                'error_message' => null
+            ));
+            return $existing_report->id;
+        } else {
+            // Create new report
+            return GRM_Database::create_report($upload_id, $order_id, $product_name, $this->determine_report_type($product_name));
+        }
+    }
+    
+    private function determine_report_type($product_name) {
+        // Map product names to report types
+        $type_mapping = array(
+            'excipient' => 'Excipient',
+            'covid' => 'Covid',
+            'variant' => 'Variant',
+            'methylation' => 'Methylation'
+        );
+        
+        $product_name_lower = strtolower($product_name);
+        
+        foreach ($type_mapping as $keyword => $type) {
+            if (strpos($product_name_lower, $keyword) !== false) {
+                return $type;
+            }
+        }
+        
+        return 'Variant'; // Default type
+    }
+    
+    public function get_report_statistics() {
+        global $wpdb;
+        
+        $stats = array();
+        
+        // Total reports
+        $stats['total'] = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}user_reports"
+        );
+        
+        // Reports by status
+        $status_counts = $wpdb->get_results(
+            "SELECT status, COUNT(*) as count FROM {$wpdb->prefix}user_reports GROUP BY status"
+        );
+        
+        $stats['by_status'] = array();
+        foreach ($status_counts as $status) {
+            $stats['by_status'][$status->status] = $status->count;
+        }
+        
+        // Reports by type
+        $type_counts = $wpdb->get_results(
+            "SELECT report_type, COUNT(*) as count FROM {$wpdb->prefix}user_reports GROUP BY report_type"
+        );
+        
+        $stats['by_type'] = array();
+        foreach ($type_counts as $type) {
+            $stats['by_type'][$type->report_type] = $type->count;
+        }
+        
+        // Recent activity (last 30 days)
+        $stats['recent'] = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}user_reports 
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+        );
+        
+        return $stats;
+    }
+}
+
 }

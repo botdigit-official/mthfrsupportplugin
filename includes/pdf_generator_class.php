@@ -204,7 +204,7 @@ class GRG_PDF_Generator {
             return $pdf->Output('', 'S');
             
         } catch (Exception $e) {
-            GRG_Logger::log('error', "TCPDF generation failed: " . $e->getMessage());
+            GRM_Logger::log('error', "TCPDF generation failed: " . $e->getMessage());
             return null;
         }
     }
@@ -277,7 +277,7 @@ class GRG_PDF_Generator {
             return $pdf->Output('', 'S');
             
         } catch (Exception $e) {
-            GRG_Logger::log('error', "FPDF generation failed: " . $e->getMessage());
+            GRM_Logger::log('error', "FPDF generation failed: " . $e->getMessage());
             return null;
         }
     }
@@ -303,7 +303,7 @@ class GRG_PDF_Generator {
             return $html;
             
         } catch (Exception $e) {
-            GRG_Logger::log('error', "HTML PDF generation failed: " . $e->getMessage());
+            GRM_Logger::log('error', "HTML PDF generation failed: " . $e->getMessage());
             return null;
         }
     }

@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$recent_reports = GRG_Database::get_recent_reports(10);
+$recent_reports = GRM_Database::get_recent_reports(10);
 $stats = array(
     'total_reports' => count($recent_reports),
     'completed' => count(array_filter($recent_reports, function($r) { return $r->status === 'completed'; })),
@@ -126,7 +126,7 @@ $stats = array(
                     <h2 class="hndle">System Info</h2>
                 </div>
                 <div class="inside">
-                    <p><strong>Plugin Version:</strong> <?php echo GRG_VERSION; ?></p>
+                    <p><strong>Plugin Version:</strong> <?php echo GRM_VERSION; ?></p>
                     <p><strong>WordPress Version:</strong> <?php echo get_bloginfo('version'); ?></p>
                     <p><strong>PHP Version:</strong> <?php echo PHP_VERSION; ?></p>
                     <p><strong>WooCommerce:</strong> <?php echo class_exists('WooCommerce') ? 'Active' : 'Inactive'; ?></p>
@@ -223,7 +223,7 @@ function createTables() {
 }
 
 <?php if (isset($_GET['create_tables']) && $_GET['create_tables'] == '1'): ?>
-    <?php GRG_Database::create_tables(); ?>
+    <?php GRM_Database::create_tables(); ?>
     <script>
         alert('Database tables created successfully!');
         window.location.href = '<?php echo admin_url('admin.php?page=genetic-reports'); ?>';
